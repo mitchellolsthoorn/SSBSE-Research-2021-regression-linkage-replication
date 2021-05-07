@@ -4,8 +4,9 @@ import time
 import autograd.numpy as np
 from pymoo.algorithms.nsga2 import NSGA2
 
-from pymoo.factory import get_crossover, get_mutation, get_sampling
+from pymoo.factory import get_crossover, get_mutation, get_sampling, get_performance_indicator
 from pymoo.optimize import minimize
+from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 
 from LinkageUniformCrossover import LinkageUniformCrossover
 from NSGA2Linkage import NSGA2Linkage
@@ -16,14 +17,14 @@ def run():
     results = {}
 
     data_dir = "../data"
-    projects = ["bash"]
+    projects = ["grep"]
     # projects = [
     #     "bash",
     #     "flex",
     #     "grep",
     #     "sed"
     # ]
-    versions = {"bash": ["v1"]}
+    versions = {"grep": ["v1"]}
     # versions = {
     #     "bash": ["v1", "v2", "v3"],
     #     "flex": ["v1", "v2", "v3"],
@@ -75,26 +76,39 @@ def optimize(data_dir, project, version):
     time1 = time.process_time()
     # Run search
     res1 = minimize(problem,
-                   algorithm1,
-                   ('n_gen', 200),
-                   verbose=True)
+                    algorithm1,
+                    ('n_gen', 200),
+                    verbose=True)
     time1_res = time.process_time() - time1
     print(time1_res)
 
     time2 = time.process_time()
     # Run search
     res2 = minimize(problem,
-                   algorithm2,
-                   ('n_gen', 200),
-                   verbose=True)
+                    algorithm2,
+                    ('n_gen', 200),
+                    verbose=True)
     time2_res = time.process_time() - time2
     print(time2_res)
 
     problem.visualize(res1.F, res2.F)
 
+    union = np.row_stack([res1.F, res2.F])
+    ns = NonDominatedSorting()
+    fronts = ns.do(union)
+    reference_front = union[fronts[0], :]
+
+    igd = get_performance_indicator("igd", reference_front, normalize=True)
+    print("igd", igd.calc(res1.F))
+    print("igd", igd.calc(res2.F))
+
+    hv = get_performance_indicator("hv", union.max(axis=0), normalize=True)
+    print("hv", hv.calc(res1.F))
+    print("hv", hv.calc(res2.F))
+
     # Print results
-    #print("Best solution found: %s" % res2.X.astype(int))
-    #print("Function value: %s" % res2.F)
+    # print("Best solution found: %s" % res2.X.astype(int))
+    # print("Function value: %s" % res2.F)
     return res1, res2
 
 
