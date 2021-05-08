@@ -11,20 +11,21 @@ from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 from LinkageUniformCrossover import LinkageUniformCrossover
 from NSGA2Linkage import NSGA2Linkage
 from Regression import Regression
+from FaultDetection import fault_detection
 
 
 def run():
     results = {}
 
     data_dir = "../data"
-    projects = ["grep"]
+    projects = ["bash"]
     # projects = [
     #     "bash",
     #     "flex",
     #     "grep",
     #     "sed"
     # ]
-    versions = {"grep": ["v1"]}
+    versions = {"bash": ["v1"]}
     # versions = {
     #     "bash": ["v1", "v2", "v3"],
     #     "flex": ["v1", "v2", "v3"],
@@ -53,6 +54,18 @@ def optimize(data_dir, project, version):
             cost_array.append(int(line))
     cost_vector = np.array(cost_array)
 
+    # Load (next-version) fault coverage
+    next_version = "v" + str(int(version.replace("v", ""))+1)
+    fault_coverage_array = []
+    count = 0
+    with open(os.path.join(data_dir, project, next_version, "fault_matrix"), 'r') as reader:
+        for line in reader.readlines():
+            if line == "\n" or line == "" or line == '':
+                continue
+            fault_coverage_array.append([int(x) for x in line.split(" ") if ((x != "\n") & (x != ""))])
+            count += 1
+    fault_coverage_array = np.matrix(fault_coverage_array)
+
     # Define problem
     problem = Regression(len(cost_vector), branch_coverage_matrix, statement_coverage_matrix, cost_vector)
 
@@ -78,6 +91,7 @@ def optimize(data_dir, project, version):
     res1 = minimize(problem,
                     algorithm1,
                     ('n_gen', 200),
+                    seed=1,
                     verbose=True)
     time1_res = time.process_time() - time1
     print(time1_res)
@@ -87,6 +101,7 @@ def optimize(data_dir, project, version):
     res2 = minimize(problem,
                     algorithm2,
                     ('n_gen', 200),
+                    seed=1,
                     verbose=True)
     time2_res = time.process_time() - time2
     print(time2_res)
@@ -105,6 +120,9 @@ def optimize(data_dir, project, version):
     hv = get_performance_indicator("hv", union.max(axis=0), normalize=True)
     print("hv", hv.calc(res1.F))
     print("hv", hv.calc(res2.F))
+
+    print("Fault Detection", fault_detection(res1.X, cost_vector, fault_coverage_array))
+    print("Fault Detection", fault_detection(res2.X, cost_vector, fault_coverage_array))
 
     # Print results
     # print("Best solution found: %s" % res2.X.astype(int))
