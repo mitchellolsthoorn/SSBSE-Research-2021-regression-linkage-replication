@@ -85,27 +85,43 @@ def optimize(data_dir, project, version):
         mutation=get_mutation("bin_bitflip"),
         eliminate_duplicates=True)
 
-    time1 = time.process_time()
-    # Run search
-    res1 = minimize(problem,
-                    algorithm1,
-                    ('n_gen', 200),
-                    seed=1,
-                    verbose=True)
-    time1_res = time.process_time() - time1
-    print(time1_res)
+    union = []
+    nsga_results = []
+    ltga_results = []
+    for index in range(0, 1):
+        time1 = time.process_time()
+        # Run search
+        res1 = minimize(problem,
+                        algorithm1,
+                        ('n_gen', 200),
+                        seed=index,
+                        verbose=True)
+        time1_res = time.process_time() - time1
+        print(time1_res)
+        nsga_results.append(res1)
 
-    time2 = time.process_time()
-    # Run search
-    res2 = minimize(problem,
-                    algorithm2,
-                    ('n_gen', 200),
-                    seed=1,
-                    verbose=True)
-    time2_res = time.process_time() - time2
-    print(time2_res)
+        time2 = time.process_time()
+        # Run search
+        res2 = minimize(problem,
+                        algorithm2,
+                        ('n_gen', 200),
+                        seed=index,
+                        verbose=True)
+        time2_res = time.process_time() - time2
+        print(time2_res)
+        ltga_results.append(res2)
 
-    problem.visualize(res1.F, res2.F)
+        if index == 0:
+            union = np.row_stack([res1.F, res2.F])
+        else:
+            union = np.row_stack([union, res1.F, res2.F])
+
+        ns = NonDominatedSorting()
+        fronts = ns.do(union)
+        reference_front = union[fronts[0], :]
+        union = reference_front
+
+        problem.visualize(res1.F, res2.F)
 
     union = np.row_stack([res1.F, res2.F])
     ns = NonDominatedSorting()
