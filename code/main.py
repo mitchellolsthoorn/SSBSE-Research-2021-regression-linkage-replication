@@ -2,6 +2,7 @@ import os
 import time
 
 import autograd.numpy as np
+import pandas as pd
 from pymoo.algorithms.nsga2 import NSGA2
 from pymoo.factory import get_crossover, get_mutation, get_sampling, get_performance_indicator
 from pymoo.optimize import minimize
@@ -12,10 +13,10 @@ from LinkageUniformCrossover import LinkageUniformCrossover
 from NSGA2Linkage import NSGA2Linkage
 from Regression import Regression
 
+REPETITIONS = 2
+
 
 def run():
-    results = {}
-
     data_dir = "../data"
     projects = ["bash"]
     # projects = [
@@ -34,8 +35,7 @@ def run():
 
     for project in projects:
         for version in versions[project]:
-            res = optimize(data_dir, project, version)
-            results[project + "-" + version] = res
+            optimize(data_dir, project, version)
 
 
 def optimize(data_dir, project, version):
@@ -65,84 +65,102 @@ def optimize(data_dir, project, version):
             count += 1
     fault_coverage_array = np.matrix(fault_coverage_array)
 
-    # Define problem
-    problem = Regression(len(cost_vector), branch_coverage_matrix, statement_coverage_matrix, cost_vector)
+    repetitions = []
+    reference_front = []
+    for repetition in range(0, REPETITIONS):
+        # Define problem
+        problem = Regression(len(cost_vector), branch_coverage_matrix, statement_coverage_matrix, cost_vector)
 
-    # Create search algorithm
-    algorithm1 = NSGA2(
-        pop_size=100,
-        sampling=get_sampling("bin_random"),
-        crossover=get_crossover("bin_ux"),
-        mutation=get_mutation("bin_bitflip"),
-        eliminate_duplicates=True)
+        # Create search algorithm
+        algorithm1 = NSGA2(
+            pop_size=100,
+            sampling=get_sampling("bin_random"),
+            crossover=get_crossover("bin_ux"),
+            mutation=get_mutation("bin_bitflip"),
+            eliminate_duplicates=True)
 
-    # Create search algorithm
-    algorithm2 = NSGA2Linkage(
-        pop_size=100,
-        linkage_frequency=1,
-        sampling=get_sampling("bin_random"),
-        crossover=LinkageUniformCrossover(0.5),
-        mutation=get_mutation("bin_bitflip"),
-        eliminate_duplicates=True)
+        # Create search algorithm
+        algorithm2 = NSGA2Linkage(
+            pop_size=100,
+            linkage_frequency=2,
+            sampling=get_sampling("bin_random"),
+            crossover=LinkageUniformCrossover(0.5),
+            mutation=get_mutation("bin_bitflip"),
+            eliminate_duplicates=True)
 
-    union = []
-    nsga_results = []
-    ltga_results = []
-    for index in range(0, 1):
         time1 = time.process_time()
         # Run search
         res1 = minimize(problem,
                         algorithm1,
                         ('n_gen', 200),
-                        seed=index,
+                        seed=repetition,
                         verbose=True)
-        time1_res = time.process_time() - time1
-        print(time1_res)
-        nsga_results.append(res1)
+        time1 = time.process_time() - time1
+        print(time1)
 
         time2 = time.process_time()
         # Run search
         res2 = minimize(problem,
                         algorithm2,
                         ('n_gen', 200),
-                        seed=index,
+                        seed=repetition,
                         verbose=True)
-        time2_res = time.process_time() - time2
-        print(time2_res)
-        ltga_results.append(res2)
+        time2 = time.process_time() - time2
+        print(time2)
 
-        if index == 0:
-            union = np.row_stack([res1.F, res2.F])
+        if repetition == 0:
+            reference_front = np.row_stack([res1.F, res2.F])
         else:
-            union = np.row_stack([union, res1.F, res2.F])
+            reference_front = np.row_stack([reference_front, res1.F, res2.F])
 
         ns = NonDominatedSorting()
-        fronts = ns.do(union)
-        reference_front = union[fronts[0], :]
-        union = reference_front
+        fronts = ns.do(reference_front)
+        reference_front = reference_front[fronts[0], :]
 
-        problem.visualize(res1.F, res2.F)
+        # problem.visualize(res1.F, res2.F)
 
-    union = np.row_stack([res1.F, res2.F])
-    ns = NonDominatedSorting()
-    fronts = ns.do(union)
-    reference_front = union[fronts[0], :]
+        faults_nsga = fault_detection(res1.X, cost_vector, fault_coverage_array)
+        faults_ltga = fault_detection(res2.X, cost_vector, fault_coverage_array)
+        print("Fault Detection", faults_nsga)
+        print("Fault Detection", faults_ltga)
 
-    igd = get_performance_indicator("igd", reference_front, normalize=True)
-    print("igd", igd.calc(res1.F))
-    print("igd", igd.calc(res2.F))
+        repetitions.append((project, version, repetition + 1, time1, time2, res1, res2, faults_nsga, faults_ltga))
 
-    hv = get_performance_indicator("hv", union.max(axis=0), normalize=True)
-    print("hv", hv.calc(res1.F))
-    print("hv", hv.calc(res2.F))
+    res = pd.DataFrame()
+    for i in repetitions:
+        (project, version, repetition, time1, time2, res1, res2, faults_nsga, faults_ltga) = i
+        igd = get_performance_indicator("igd", reference_front, normalize=True)
+        igd_nsga = igd.calc(res1.F)
+        igd_ltga = igd.calc(res2.F)
+        print("igd", igd_nsga)
+        print("igd", igd_ltga)
 
-    print("Fault Detection", fault_detection(res1.X, cost_vector, fault_coverage_array))
-    print("Fault Detection", fault_detection(res2.X, cost_vector, fault_coverage_array))
+        hv = get_performance_indicator("hv", reference_front.max(axis=0), normalize=True)
+        hv_nsga = hv.calc(res1.F)
+        hv_ltga = hv.calc(res2.F)
+        print("hv", hv_nsga)
+        print("hv", hv_ltga)
+
+        res_temp = pd.DataFrame({
+            'project': project,
+            'version': version,
+            'repetition': repetition,
+            'nsga_time': time1,
+            'ltga_time': time2,
+            'nsga_igd': igd_nsga,
+            'ltga_igd': igd_ltga,
+            'nsga_hv': hv_nsga,
+            'ltga_hv': hv_ltga,
+            'nsga_faults': faults_nsga,
+            'ltga_faults': faults_ltga
+        }, index=[0])
+        res = res.append(res_temp)
+
+    res.to_csv(os.path.join(data_dir, project, version, "statistics.csv"), index=False)
 
     # Print results
     # print("Best solution found: %s" % res2.X.astype(int))
     # print("Function value: %s" % res2.F)
-    return res1, res2
 
 
 # Compressed data files
