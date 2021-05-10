@@ -9,7 +9,7 @@ def compact_file(data_dir, project, version, file):
         for line in reader.readlines():
             if line == "\n" or line == "":
                 continue
-            dataset.append([int(x) for x in line.split(" ") if x != "\n"])
+            dataset.append([int(x) for x in line.split(" ") if ((x != "\n") & (x != ""))])
 
     matrix = np.matrix(dataset)
     matrix_t = matrix.transpose()

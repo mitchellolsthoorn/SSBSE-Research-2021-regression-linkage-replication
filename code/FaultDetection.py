@@ -6,7 +6,7 @@ def fault_detection(pareto_set, cost_vector, fault_matrix):
     cost_data = np.dot(cost_vector, np.transpose(pareto_set))
     fault_data = np.sum(np.clip(np.dot(pareto_set, fault_matrix), 0, 1), axis=1)
 
-    # sort points in ascendig order of cost
+    # sort points in ascending order of cost
     results = np.column_stack([cost_data, fault_data])
     results = np.row_stack([[0, 0], results])  # add first point
     results = results[results[:, 0].argsort()]  # sorting

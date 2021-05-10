@@ -3,15 +3,14 @@ import time
 
 import autograd.numpy as np
 from pymoo.algorithms.nsga2 import NSGA2
-
 from pymoo.factory import get_crossover, get_mutation, get_sampling, get_performance_indicator
 from pymoo.optimize import minimize
 from pymoo.util.nds.non_dominated_sorting import NonDominatedSorting
 
+from FaultDetection import fault_detection
 from LinkageUniformCrossover import LinkageUniformCrossover
 from NSGA2Linkage import NSGA2Linkage
 from Regression import Regression
-from FaultDetection import fault_detection
 
 
 def run():
@@ -55,12 +54,12 @@ def optimize(data_dir, project, version):
     cost_vector = np.array(cost_array)
 
     # Load (next-version) fault coverage
-    next_version = "v" + str(int(version.replace("v", ""))+1)
+    next_version = "v" + str(int(version.replace("v", "")) + 1)
     fault_coverage_array = []
     count = 0
     with open(os.path.join(data_dir, project, next_version, "fault_matrix"), 'r') as reader:
         for line in reader.readlines():
-            if line == "\n" or line == "" or line == '':
+            if line == "\n" or line == "":
                 continue
             fault_coverage_array.append([int(x) for x in line.split(" ") if ((x != "\n") & (x != ""))])
             count += 1
@@ -152,7 +151,7 @@ def load_ssv(data_dir, project, version):
         for line in reader.readlines():
             if line == "\n" or line == "":
                 continue
-            branch_coverage_array.append([int(x) for x in line.split(" ") if x != "\n"])
+            branch_coverage_array.append([int(x) for x in line.split(" ") if ((x != "\n") & (x != ""))])
     branch_coverage_matrix = np.matrix(branch_coverage_array)
 
     # Functions
@@ -161,7 +160,7 @@ def load_ssv(data_dir, project, version):
         for line in reader.readlines():
             if line == "\n" or line == "":
                 continue
-            function_coverage_array.append([int(x) for x in line.split(" ") if x != "\n"])
+            function_coverage_array.append([int(x) for x in line.split(" ") if ((x != "\n") & (x != ""))])
     function_coverage_matrix = np.matrix(function_coverage_array)
 
     # Statements
@@ -170,7 +169,7 @@ def load_ssv(data_dir, project, version):
         for line in reader.readlines():
             if line == "\n" or line == "":
                 continue
-            statement_coverage_array.append([int(x) for x in line.split(" ") if x != "\n"])
+            statement_coverage_array.append([int(x) for x in line.split(" ") if ((x != "\n") & (x != ""))])
     statement_coverage_matrix = np.matrix(statement_coverage_array)
 
     return branch_coverage_matrix, function_coverage_matrix, statement_coverage_matrix
